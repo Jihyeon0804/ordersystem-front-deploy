@@ -1,0 +1,45 @@
+name: deploy to s3, cloudfront
+# 이벤트 정의 (트리거) - 매인에 푸시되는 경우
+on:
+  push:
+    branches:
+      - main
+
+# 가상 pc에 대한 운영 체제 정의
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # uses : 재사용이 가능한 사전에 만들어진 작업 절차
+      # 가상 pc 에서 clone (소스 코드 checkout)
+      - uses: actions/checkout@v2
+
+      # npm 명령어 쓰기 위해서는 nodejs 필요하기 때문에 설치
+      - name: setup nodejs
+        uses: actions/setup-node@v2
+        with:
+          node-version: '22'
+
+      # run : 개발자가 직접 작업을 정의
+      - name: npm install
+        working-directory: .
+        # node modules 생성하기 위한 명령어
+        run: npm install
+
+      - name: npm build
+        working-directory: .
+        # dist 폴더 생성 위한 명령어
+        run: npm run build
+
+      - name: setup aws cli
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{secrets.AWS_ACCESS_KEY}}
+          aws-secret-access-key: ${{secrets.AWS_SECRET_KEY}}
+          aws-region: "ap-north-est-2"
+
+      - name: deploy to s3
+        run: aws s3 cp ./dist s3://www.cam080421.shop/ --recursive
+
+      - name: invalidate cloudfront
+        run: aws cloudfront create-invalidation --distribution-id E2S9V8JMCNDX4Q --paths "/*"
